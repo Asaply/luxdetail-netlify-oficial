@@ -51,18 +51,9 @@ exports.handler = async (event) => {
 
   try {
     const booking = JSON.parse(event.body);
-    let pk = (process.env.GOOGLE_PRIVATE_KEY || '').trim();
-    pk = pk.replace(/\\n/g, '\n');
-    if (!pk.includes('\n')) {
-      const m = pk.match(/-----BEGIN PRIVATE KEY-----(.*?)-----END PRIVATE KEY-----/);
-      if (m) {
-        const b64 = m[1].replace(/\s/g, '');
-        pk = `-----BEGIN PRIVATE KEY-----\n${b64.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----\n`;
-      }
-    }
     const creds = {
       client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: pk,
+      private_key: Buffer.from(process.env.GOOGLE_PRIVATE_KEY_B64, 'base64').toString('utf8'),
     };
     const sheetId = process.env.SPREADSHEET_ID;
     const token   = await getAccessToken(creds);
