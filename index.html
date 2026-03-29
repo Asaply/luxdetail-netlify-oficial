@@ -2145,8 +2145,8 @@ const MP_LINK = 'https://mpago.la/15iKLBV';
 
 function payWithMP() {
   closeDisclaimer();
+  window.open(MP_LINK, '_blank');
   submitBooking(true);
-  setTimeout(() => window.open(MP_LINK, '_blank'), 900);
 }
 
 function toggleSPEI() {
@@ -2227,11 +2227,6 @@ function submitBooking(withAnticipo = false) {
   lastWAMessage = msg;
   lastBookingId = booking.id;
   showSuccess(booking, withAnticipo);
-  
-  // Auto-open WhatsApp after brief delay so user sees success screen first
-  setTimeout(() => {
-    window.open(`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`, '_blank');
-  }, 1200);
 }
 
 function showSuccess(booking, withAnticipo) {
