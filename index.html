@@ -2224,9 +2224,8 @@ function submitBooking(withAnticipo = false) {
   saveBookings(bookings);
 
   // Send to Google Sheets
-  fetch('/.netlify/functions/save-booking', {
+  fetch('https://script.google.com/macros/s/AKfycbz-XGAnf2cRDOsMMDoOwrb1Iqd7s3BrWWQUf-PBWR_w-2VGxjoS50sAxTemOn7OfAq9/exec', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(booking),
   }).catch(err => console.error('save-booking:', err));
 
