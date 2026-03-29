@@ -2223,6 +2223,13 @@ function submitBooking(withAnticipo = false) {
   bookings.push(booking);
   saveBookings(bookings);
 
+  // Send to Google Sheets
+  fetch('/.netlify/functions/save-booking', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(booking),
+  }).catch(err => console.error('save-booking:', err));
+
   // Store message and show success screen
   lastWAMessage = msg;
   lastBookingId = booking.id;
