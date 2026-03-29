@@ -1,46 +1,61 @@
-const { google } = require('googleapis');
+const crypto = require('crypto');
+const https = require('https');
 
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
-const SHEET_NAME = 'Reservaciones';
+function base64url(str) {
+  return Buffer.from(str).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function httpsPost(hostname, path, headers, body) {
+  return new Promise((resolve, reject) => {
+    const req = https.request({ hostname, path, method: 'POST', headers }, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => resolve(data));
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+async function getAccessToken(creds) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claim  = base64url(JSON.stringify({
+    iss: creds.client_email,
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+  }));
+  const input = `${header}.${claim}`;
+  const sig = crypto.createSign('RSA-SHA256');
+  sig.update(input);
+  const signature = sig.sign(creds.private_key, 'base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const jwt = `${input}.${signature}`;
+
+  const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
+  const res = await httpsPost('oauth2.googleapis.com', '/token',
+    { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
+    body
+  );
+  const parsed = JSON.parse(res);
+  if (!parsed.access_token) throw new Error('Token error: ' + res);
+  return parsed.access_token;
+}
 
 exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
-  }
+  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
   try {
     const booking = JSON.parse(event.body);
+    const creds   = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+    const sheetId = process.env.SPREADSHEET_ID;
+    const token   = await getAccessToken(creds);
 
-    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    // Ensure header row exists
-    const header = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A1:P1`,
-    });
-
-    if (!header.data.values || header.data.values.length === 0) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${SHEET_NAME}!A1`,
-        valueInputOption: 'RAW',
-        requestBody: {
-          values: [[
-            'Folio', 'Fecha Reserva', 'Nombre', 'Teléfono', 'Dirección',
-            'Vehículo', 'Servicio', 'Extras', 'Fecha Cita', 'Hora',
-            'Total', 'Pago', 'Anticipo', 'Notas', 'Estado', 'Creado'
-          ]],
-        },
-      });
-    }
-
-    const addonsStr = Object.values(booking.addons || {}).map(a => a.name).join(', ') || '—';
+    const addons = Object.values(booking.addons || {}).map(a => a.name).join(', ') || '—';
     const row = [
       (booking.id || '').toUpperCase(),
       new Date().toLocaleDateString('es-MX'),
@@ -49,35 +64,26 @@ exports.handler = async (event) => {
       booking.address || '',
       booking.vehName || '',
       `${booking.category || ''} · ${booking.variant || ''}`,
-      addonsStr,
+      addons,
       booking.date || '',
       booking.time || '',
-      `$${(booking.total || 0).toLocaleString()} MXN`,
+      `$${booking.total || 0} MXN`,
       booking.paymentMethod || 'efectivo',
       booking.anticipoPaid ? 'Sí' : 'No',
       booking.notes || '',
       'Por confirmar',
-      booking.createdAt || new Date().toISOString(),
     ];
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A1`,
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [row] },
-    });
+    const body = JSON.stringify({ values: [row] });
+    const path = `/v4/spreadsheets/${sheetId}/values/A1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+    await httpsPost('sheets.googleapis.com', path,
+      { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+      body
+    );
 
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ok: true }),
-    };
+    return { statusCode: 200, body: JSON.stringify({ ok: true }) };
   } catch (err) {
-    console.error('save-booking error:', err);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ ok: false, error: err.message }),
-    };
+    console.error(err);
+    return { statusCode: 500, body: JSON.stringify({ ok: false, error: err.message }) };
   }
 };
