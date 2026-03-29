@@ -1563,6 +1563,14 @@ footer {
 
 
 <!-- BOOKING SUCCESS SCREEN -->
+<!-- Netlify Forms -->
+<form name="reservaciones" data-netlify="true" hidden>
+  <input name="folio" /><input name="nombre" /><input name="telefono" />
+  <input name="direccion" /><input name="vehiculo" /><input name="servicio" />
+  <input name="extras" /><input name="fecha" /><input name="hora" />
+  <input name="total" /><input name="pago" /><input name="anticipo" /><input name="notas" />
+</form>
+
 <div id="bookingSuccess">
   <div class="success-icon">✅</div>
   <p class="success-folio">Folio de reservación: <span id="successFolio">—</span></p>
@@ -2223,12 +2231,28 @@ function submitBooking(withAnticipo = false) {
   bookings.push(booking);
   saveBookings(bookings);
 
-  // Send to Google Sheets
-  fetch('/.netlify/functions/save-booking', {
+  // Send to Netlify Forms
+  const addons = Object.values(booking.addons || {}).map(a => a.name).join(', ') || '—';
+  fetch('/', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(booking),
-  }).catch(err => console.error('save-booking:', err));
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      'form-name': 'reservaciones',
+      folio: (booking.id || '').toUpperCase(),
+      nombre: booking.name || '',
+      telefono: booking.phone || '',
+      direccion: booking.address || '',
+      vehiculo: booking.vehName || '',
+      servicio: `${booking.category || ''} · ${booking.variant || ''}`,
+      extras: addons,
+      fecha: booking.date || '',
+      hora: booking.time || '',
+      total: `$${booking.total || 0} MXN`,
+      pago: booking.paymentMethod || 'efectivo',
+      anticipo: booking.anticipoPaid ? 'Sí' : 'No',
+      notas: booking.notes || '',
+    }).toString(),
+  }).catch(err => console.error('netlify-form:', err));
 
   // Store message and show success screen
   lastWAMessage = msg;
