@@ -51,7 +51,10 @@ exports.handler = async (event) => {
 
   try {
     const booking = JSON.parse(event.body);
-    const creds   = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+    const creds = {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    };
     const sheetId = process.env.SPREADSHEET_ID;
     const token   = await getAccessToken(creds);
 
