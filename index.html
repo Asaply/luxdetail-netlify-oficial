@@ -1283,10 +1283,6 @@ footer {
               <span class="pay-opt-icon">💳</span>
               <span class="pay-opt-label">Tarjeta</span>
             </div>
-            <div class="pay-opt" data-pay="stripe" onclick="selectPayment(this)">
-              <span class="pay-opt-icon">⚡</span>
-              <span class="pay-opt-label">Stripe</span>
-            </div>
           </div>
         </div>
         <div class="confirm-box" id="confirmBox"></div>
@@ -1524,40 +1520,13 @@ footer {
     <div class="disc-actions">
       <button class="disc-btn-pay disc-btn-mp" onclick="payWithMP()">
         <img src="https://http2.mlstatic.com/frontend-assets/mp-web-navigation/ui-navigation/6.6.74/mercadopago/logo__large@2x.png" alt="Mercado Pago" style="height:18px;filter:brightness(0) invert(1);opacity:.9;">
-        &nbsp;Pagar $50 MXN · Anticipo
+        &nbsp;Pagar $50 MXN con Mercado Pago
       </button>
-      <button class="disc-btn-pay disc-btn-spei" onclick="toggleSPEI()">
-        🏦 &nbsp;Pagar por transferencia SPEI
+      <button class="disc-btn-pay" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);font-size:12px;margin-top:4px;" onclick="skipAnticipo()">
+        Omitir anticipo — pagar el día de la cita
       </button>
-      <div class="disc-spei-box" id="speiBox" style="display:none;">
-        <div class="disc-spei-title">🏦 Datos de transferencia SPEI</div>
-        <div class="disc-spei-row">
-          <span class="disc-spei-lbl">CLABE</span>
-          <span class="disc-spei-val" id="clabeVal">722969069446158895</span>
-          <button class="disc-copy-btn" onclick="copyCLABE()" id="copyBtn">Copiar</button>
-        </div>
-        <div class="disc-spei-row">
-          <span class="disc-spei-lbl">Banco</span>
-          <span class="disc-spei-val">Mercado Pago</span>
-        </div>
-        <div class="disc-spei-row">
-          <span class="disc-spei-lbl">Beneficiario</span>
-          <span class="disc-spei-val">Leonardo H.</span>
-        </div>
-        <div class="disc-spei-row">
-          <span class="disc-spei-lbl">Monto</span>
-          <span class="disc-spei-val" style="color:var(--accent);font-weight:500;">$50.00 MXN</span>
-        </div>
-        <div class="disc-spei-row">
-          <span class="disc-spei-lbl">Concepto</span>
-          <span class="disc-spei-val">Anticipo Lux Detail</span>
-        </div>
-        <button class="disc-btn-pay" style="margin-top:14px;" onclick="confirmTransfer()">
-          ✅ &nbsp;Ya realicé la transferencia
-        </button>
-      </div>
     </div>
-    <p class="disc-stripe-note">🔒 Pago seguro · El anticipo se descuenta del total el día de tu cita.</p>
+    <p class="disc-stripe-note">🔒 El anticipo se descuenta del total el día de tu cita · No reembolsable si cancelas sin 12h de aviso.</p>
   </div>
 </div>
 
@@ -1575,7 +1544,7 @@ footer {
   <div class="success-icon">✅</div>
   <p class="success-folio">Folio de reservación: <span id="successFolio">—</span></p>
   <h2 class="success-title">¡Reservación<br><em>confirmada!</em></h2>
-  <p class="success-sub">Tu cita ha sido registrada. Envía tu comprobante de transferencia por WhatsApp para que confirmemos tu lugar.</p>
+  <p class="success-sub">Tu cita está registrada. Abre WhatsApp para enviarnos los detalles y confirmamos tu lugar enseguida.</p>
   <div class="success-detail" id="successDetail"></div>
   <div class="success-actions">
     <button class="success-btn-wa" id="successWaBtn" onclick="openWhatsAppConfirm()">
@@ -2357,57 +2326,44 @@ function checkAdminPwd() {
   }
 }
 
+let adminBookings = [];
+
 function renderAdminContent() {
   const content = document.getElementById('adminContent');
   content.innerHTML = '<p style="color:var(--text-dim);text-align:center;padding:20px">Cargando reservaciones...</p>';
   supaSelect('reservaciones').then(bookings => {
-    if (!Array.isArray(bookings)) bookings = [];
-    // Map Supabase fields to internal format
-    bookings = bookings.map(b => ({
-      ...b,
-      name: b.nombre, phone: b.telefono, address: b.direccion,
-      vehName: b.vehiculo, date: b.fecha_cita, status: b.estado,
-      paymentMethod: b.pago, anticipoPaid: b.anticipo,
-      addons: {}, notes: b.notas, total: b.total,
-    }));
-    _renderAdminBookings(bookings);
+    adminBookings = Array.isArray(bookings) ? bookings : [];
+    _renderAdminBookings(adminBookings);
   }).catch(() => {
-    content.innerHTML = '<p style="color:red;text-align:center;padding:20px">Error al cargar reservaciones.</p>';
+    content.innerHTML = '<p style="color:red;text-align:center;padding:20px">Error al cargar. <button onclick="renderAdminContent()" style="color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Reintentar</button></p>';
   });
 }
 
 function _renderAdminBookings(bookings) {
-  const awaiting  = bookings.filter(b=>b.estado==='Por confirmar'||b.estado==='awaiting_payment');
-  const pending   = [];
-  const confirmed = bookings.filter(b=>b.estado==='Confirmada'||b.estado==='confirmed');
-  const completed = bookings.filter(b=>b.estado==='Completada'||b.estado==='completed');
-  const cancelled = bookings.filter(b=>b.estado==='Cancelada'||b.estado==='cancelled');
-  const totalRev  = completed.reduce((s,b)=>s+(b.total||0),0);
-  const content   = document.getElementById('adminContent');
-
-  const statusLabel = {
-    awaiting_payment: '⏳ Pago pendiente',
-    pending:          '🔔 Por confirmar',
-    confirmed:        '✅ Confirmada',
-    completed:        '★ Completada',
-    cancelled:        '✕ Cancelada',
-  };
-  const payLabel = { efectivo:'💵 Efectivo', tarjeta:'💳 Tarjeta', stripe:'⚡ Stripe' };
+  const porConfirmar = bookings.filter(b=>b.estado==='Por confirmar');
+  const confirmadas  = bookings.filter(b=>b.estado==='Confirmada');
+  const completadas  = bookings.filter(b=>b.estado==='Completada');
+  const canceladas   = bookings.filter(b=>b.estado==='Cancelada');
+  const totalRev     = completadas.reduce((s,b)=>s+(b.total||0),0);
+  const content      = document.getElementById('adminContent');
+  const payLabel     = { efectivo:'💵 Efectivo', tarjeta:'💳 Tarjeta' };
 
   let h = `
-    <div class="admin-stats">
-      <div class="admin-stat awaiting"><div class="admin-stat-n">${awaiting.length}</div><div class="admin-stat-l">Pago pendiente</div></div>
-      <div class="admin-stat"><div class="admin-stat-n">${pending.length + confirmed.length}</div><div class="admin-stat-l">Confirmadas</div></div>
-      <div class="admin-stat"><div class="admin-stat-n">$${totalRev.toLocaleString()}</div><div class="admin-stat-l">Ingresos completados</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div class="admin-stats" style="flex:1">
+        <div class="admin-stat awaiting"><div class="admin-stat-n">${porConfirmar.length}</div><div class="admin-stat-l">Por confirmar</div></div>
+        <div class="admin-stat"><div class="admin-stat-n">${confirmadas.length}</div><div class="admin-stat-l">Confirmadas</div></div>
+        <div class="admin-stat"><div class="admin-stat-n">$${totalRev.toLocaleString()}</div><div class="admin-stat-l">Ingresos</div></div>
+      </div>
+      <button onclick="renderAdminContent()" style="background:none;border:1px solid var(--border);color:var(--text-dim);padding:8px 14px;border-radius:6px;cursor:pointer;font-size:12px;margin-left:12px;">↻ Actualizar</button>
     </div>
   `;
 
   const sections = [
-    ['⏳ Esperando comprobante', awaiting],
-    ['🔔 Pendientes de confirmar', pending],
-    ['✅ Confirmadas', confirmed],
-    ['★ Completadas', completed.slice(-5).reverse()],
-    ['✕ Canceladas', cancelled.slice(-3).reverse()],
+    ['⏳ Por confirmar', porConfirmar],
+    ['✅ Confirmadas', confirmadas],
+    ['★ Completadas', completadas.slice().reverse().slice(0,5)],
+    ['✕ Canceladas', canceladas.slice().reverse().slice(0,3)],
   ];
 
   sections.forEach(([title, list]) => {
@@ -2416,45 +2372,35 @@ function _renderAdminBookings(bookings) {
     if(!list.length) { h += `<p class="no-bookings">Sin citas.</p>`; return; }
 
     list.forEach(b => {
-      const d = new Date(b.date+'T12:00:00');
-      const addonsStr = Object.values(b.addons||{}).map(a=>a.name).join(', ');
-      const pm = b.paymentMethod || 'efectivo';
-      const catNames = {lavado:'Lavado',encerado:'Encerado',ceramic:'Cerámico',ceramicRines:'Cerámico Rines',pulido:'Pulido'};
-
-      const awaitingBox = b.status==='awaiting_payment' ? `
-        <div class="comprobante-box">
-          ⚠️ Esperando comprobante SPEI · <strong>$50 MXN</strong> · Verifica en Mercado Pago antes de confirmar.
-        </div>` : '';
+      const d = new Date((b.fecha_cita||'')+'T12:00:00');
+      const fechaStr = b.fecha_cita ? d.toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short'}) : '—';
+      const pm = b.pago || 'efectivo';
+      const anticipoBadge = b.anticipo ? '<span class="pay-badge pay-anticipo">✓ Anticipo</span>' : '';
 
       h += `<div class="booking-card">
         <div class="booking-card-header">
-          <span class="booking-card-name">${b.name}${b.phone?' · '+b.phone:''}</span>
-          <span class="booking-card-date">${d.toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short'})} ${b.time}</span>
+          <span class="booking-card-name">${b.nombre||'—'}${b.telefono?' · '+b.telefono:''}</span>
+          <span class="booking-card-date">${fechaStr} ${b.hora||''}</span>
         </div>
-        ${awaitingBox}
         <div class="booking-card-detail">
-          🚙 ${b.vehName}<br>
-          🔧 ${catNames[b.category]||b.category} · ${b.variant}${addonsStr?'<br>➕ '+addonsStr:''}<br>
-          ${b.notes?'📝 '+b.notes+'<br>':''}
-          <span class="status-badge status-${b.status}">${statusLabel[b.status]||b.status}</span>
-          <span class="pay-badge ${pm==='stripe'?'pay-stripe':pm==='tarjeta'?'pay-card':'pay-cash'}">${payLabel[pm]||pm}</span>
-          ${b.anticipoPaid?'<span class="pay-badge pay-anticipo">Anticipo enviado</span>':''}
+          🚙 ${b.vehiculo||'—'}<br>
+          🔧 ${b.servicio||'—'}${b.extras&&b.extras!=='—'?'<br>➕ '+b.extras:''}<br>
+          📍 ${b.direccion||'—'}<br>
+          ${b.notas?'📝 '+b.notas+'<br>':''}
+          <span class="pay-badge ${pm==='tarjeta'?'pay-card':'pay-cash'}">${payLabel[pm]||pm}</span>
+          ${anticipoBadge}
         </div>
-        <div class="booking-card-total">Total estimado: <span>$${b.total.toLocaleString()} MXN</span></div>
+        <div class="booking-card-total">Total estimado: <span>$${(b.total||0).toLocaleString()} MXN</span></div>
         <div class="booking-card-actions">
-          ${b.status==='awaiting_payment'?`
-            <button class="booking-action-btn paid" onclick="markPaidAndConfirm('${b.id}')">✓ Pago verificado → Confirmar</button>
+          ${b.estado==='Por confirmar'?`
+            <button class="booking-action-btn paid" onclick="markPaidAndConfirm('${b.id}')">✓ Confirmar cita</button>
             <button class="booking-action-btn cancel" onclick="updateBookingStatus('${b.id}','cancelled')">✕ Cancelar</button>
           `:''}
-          ${b.status==='pending'?`
-            <button class="booking-action-btn confirm" onclick="updateBookingStatus('${b.id}','confirmed')">✓ Confirmar</button>
+          ${b.estado==='Confirmada'?`
+            <button class="booking-action-btn complete" onclick="updateBookingStatus('${b.id}','completed')">★ Marcar completada</button>
             <button class="booking-action-btn cancel" onclick="updateBookingStatus('${b.id}','cancelled')">✕ Cancelar</button>
           `:''}
-          ${b.status==='confirmed'?`
-            <button class="booking-action-btn complete" onclick="updateBookingStatus('${b.id}','completed')">★ Completada</button>
-            <button class="booking-action-btn cancel" onclick="updateBookingStatus('${b.id}','cancelled')">✕ Cancelar</button>
-          `:''}
-          <button class="booking-action-btn" onclick="notifyClient('${b.id}')">💬 WhatsApp</button>
+          ${b.telefono?`<button class="booking-action-btn" onclick="notifyClient('${b.id}')">💬 WhatsApp</button>`:''}
         </div>
       </div>`;
     });
@@ -2475,11 +2421,12 @@ function updateBookingStatus(id, status) {
 }
 
 function notifyClient(id) {
-  const b = getBookings().find(x=>x.id===id);
-  if(!b || !b.phone) { alert('Este cliente no dejó número de teléfono.'); return; }
-  const d=new Date(b.date+'T12:00:00');
-  const msg = `Hola ${b.name}! Te confirmamos tu cita en Lux Detail para el ${d.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'})} a las ${b.time}. ¡Te esperamos! 🚗✨`;
-  window.open(`https://wa.me/${b.phone.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
+  const b = adminBookings.find(x=>x.id===id);
+  if(!b || !b.telefono) { alert('Este cliente no dejó número de teléfono.'); return; }
+  const d = new Date((b.fecha_cita||'')+'T12:00:00');
+  const fechaStr = b.fecha_cita ? d.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'}) : '';
+  const msg = `Hola ${b.nombre}! 👋 Te confirmamos tu cita en Lux Detail para el ${fechaStr} a las ${b.hora}.\n\n🚙 ${b.vehiculo}\n🔧 ${b.servicio}\n📍 ${b.direccion}\n\n¡Te esperamos! 🚗✨`;
+  window.open(`https://wa.me/${b.telefono.replace(/\D/g,'')}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 // Init sidebar
