@@ -1541,14 +1541,14 @@ footer {
 </form>
 
 <div id="bookingSuccess">
-  <div class="success-icon">✅</div>
-  <p class="success-folio">Folio de reservación: <span id="successFolio">—</span></p>
-  <h2 class="success-title">¡Reservación<br><em>confirmada!</em></h2>
-  <p class="success-sub">Tu cita está registrada. Abre WhatsApp para enviarnos los detalles y confirmamos tu lugar enseguida.</p>
+  <div class="success-icon" id="successIcon">📋</div>
+  <p class="success-folio">Folio: <span id="successFolio">—</span></p>
+  <h2 class="success-title" id="successTitle">Reservación<br><em>registrada</em></h2>
+  <p class="success-sub" id="successSub"></p>
   <div class="success-detail" id="successDetail"></div>
   <div class="success-actions">
     <button class="success-btn-wa" id="successWaBtn" onclick="openWhatsAppConfirm()">
-      💬 &nbsp;Abrir WhatsApp con detalles
+      💬 &nbsp;Enviar detalles por WhatsApp
     </button>
     <button class="success-btn-back" onclick="closeSuccess()">
       Hacer otra reservación
@@ -2144,7 +2144,7 @@ const MP_LINK = 'https://mpago.la/15iKLBV';
 function payWithMP() {
   closeDisclaimer();
   window.open(MP_LINK, '_blank');
-  submitBooking(true);
+  submitBooking(false, true); // anticipo=false hasta que admin verifique, pero marcamos que fue a pagar
 }
 
 function toggleSPEI() {
@@ -2177,7 +2177,7 @@ function skipAnticipo() {
 let lastWAMessage = '';
 let lastBookingId = '';
 
-function submitBooking(withAnticipo = false) {
+function submitBooking(withAnticipo = false, intentoPago = false) {
   const name = document.getElementById('clientName').value.trim();
   if(!name) { alert('Por favor ingresa tu nombre.'); return; }
   const address = document.getElementById('clientAddress').value.trim();
@@ -2243,18 +2243,27 @@ function submitBooking(withAnticipo = false) {
   // Store message and show success screen
   lastWAMessage = msg;
   lastBookingId = booking.id;
-  showSuccess(booking, withAnticipo);
+  showSuccess(booking, intentoPago);
 }
 
-function showSuccess(booking, withAnticipo) {
+function showSuccess(booking, intentoPago) {
   const vehName = booking.vehName;
   const catNames = {lavado:'Lavado',ceramic:'Ceramic Coating',ceramicRines:'Cerámico en Rines',pulido:'Pulido'};
   const payLabels = {efectivo:'💵 Efectivo', tarjeta:'💳 Tarjeta', stripe:'⚡ Stripe'};
   const d = new Date(booking.date + 'T12:00:00');
   const dateStr = d.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
   
-  // Fill folio
+  // Fill folio and dynamic message
   document.getElementById('successFolio').textContent = booking.id.toUpperCase();
+  if (intentoPago) {
+    document.getElementById('successIcon').textContent = '⏳';
+    document.getElementById('successTitle').innerHTML = 'Pago en proceso<br><em>casi listo</em>';
+    document.getElementById('successSub').textContent = 'Abre WhatsApp y mándanos el comprobante de tu pago de $50 MXN. Confirmamos tu cita en cuanto lo verifiquemos.';
+  } else {
+    document.getElementById('successIcon').textContent = '📋';
+    document.getElementById('successTitle').innerHTML = 'Reservación<br><em>registrada</em>';
+    document.getElementById('successSub').textContent = 'Tu cita está guardada. Mándanos un mensaje por WhatsApp para coordinar los detalles y el anticipo.';
+  }
   
   // Fill detail card
   const detail = document.getElementById('successDetail');
@@ -2265,7 +2274,7 @@ function showSuccess(booking, withAnticipo) {
     ${addonsStr !== '—' ? `<div class="success-row"><span class="success-row-lbl">Extras</span><span class="success-row-val">${addonsStr}</span></div>` : ''}
     <div class="success-row"><span class="success-row-lbl">Fecha</span><span class="success-row-val">${dateStr}</span></div>
     <div class="success-row"><span class="success-row-lbl">Hora</span><span class="success-row-val">${booking.time}</span></div>
-    <div class="success-row"><span class="success-row-lbl">Pago</span><span class="success-row-val">${payLabels[booking.paymentMethod]||'💵 Efectivo'}${withAnticipo?' · Anticipo ✅':''}</span></div>
+    <div class="success-row"><span class="success-row-lbl">Pago</span><span class="success-row-val">${payLabels[booking.paymentMethod]||'💵 Efectivo'}${intentoPago?' · Anticipo en verificación ⏳':''}</span></div>
     <div class="success-row"><span class="success-row-lbl">Total estimado</span><span class="success-row-val" style="color:var(--accent);font-size:16px;">$${booking.total.toLocaleString()} MXN</span></div>
   `;
   
