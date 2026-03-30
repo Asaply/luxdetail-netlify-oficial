@@ -1819,7 +1819,14 @@ function goStep(n) {
   });
   state.currentStep = n;
   if(n===3) renderAddons();
-  if(n===4) renderDates();
+  if(n===4) {
+    const grid = document.getElementById('dateGrid');
+    grid.innerHTML = '<p style="color:var(--text-dim);font-size:13px;padding:12px 0">Cargando disponibilidad...</p>';
+    supaSelect('reservaciones', 'fecha_cita.asc').then(rows => {
+      liveBookings = Array.isArray(rows) ? rows.filter(b => b.estado !== 'Cancelada') : [];
+      renderDates();
+    }).catch(() => { liveBookings = []; renderDates(); });
+  }
   if(n===5) renderConfirm();
   updateSidebar();
   // no scroll
@@ -1949,11 +1956,22 @@ function renderAddons() {
 }
 
 // ── STEP 4: DATES ──
+let liveBookings = []; // bookings from Supabase for availability
+
 function getBookings() {
   try { return JSON.parse(localStorage.getItem('luxBookings') || '[]'); } catch { return []; }
 }
 function saveBookings(arr) {
   localStorage.setItem('luxBookings', JSON.stringify(arr));
+}
+
+function getCategoryFromSvc(svc) {
+  const s = (svc || '').toLowerCase();
+  if(s.includes('cerámico rines') || s.includes('rines')) return 'ceramicRines';
+  if(s.startsWith('cerámico') || s.startsWith('ceramic')) return 'ceramic';
+  if(s.startsWith('pulido')) return 'pulido';
+  if(s.startsWith('encerado')) return 'encerado';
+  return 'lavado';
 }
 
 // Returns gap in hours for a booking variant label
@@ -1969,29 +1987,25 @@ function currentGap() {
   return 2;
 }
 
-// Returns Set of blocked time indices for a given date, considering existing bookings + current service type
+// Returns Set of blocked time indices for a given date, using live Supabase bookings
 function getBlockedSlots(dateStr) {
-  const bookings = getBookings();
-  const dayBookings = bookings.filter(b => b.date === dateStr && b.status !== 'cancelled');
+  const dayBookings = liveBookings.filter(b => b.fecha_cita === dateStr && b.estado !== 'Cancelada');
   const times = getTimes(dateStr);
   const gap = currentGap();
 
-  // If any ceramic/pulido booking exists that day → block entire day for everyone
-  const hasCeramicOrPulido = dayBookings.some(b => b.category === 'ceramic' || b.category === 'ceramicRines' || b.category === 'pulido');
+  const hasCeramicOrPulido = dayBookings.some(b => {
+    const cat = getCategoryFromSvc(b.servicio);
+    return cat === 'ceramic' || cat === 'ceramicRines' || cat === 'pulido';
+  });
   if (hasCeramicOrPulido) return new Set(times.map((_, i) => i));
-
-  // If current service is ceramic/pulido and any booking exists that day → block entire day
   if (gap === 'all_day' && dayBookings.length > 0) return new Set(times.map((_, i) => i));
 
   const gapNum = gap === 'all_day' ? 1 : gap;
   const blocked = new Set();
   dayBookings.forEach(b => {
-    const bIdx = times.indexOf(b.time);
+    const bIdx = times.indexOf(b.hora);
     if (bIdx === -1) return;
-    const bGap = bookingGap(b.variant);
-    // Block range: from (bIdx - gapNum + 1) to (bIdx + bGap - 1)
-    // — backward: can't book too close before an existing booking
-    // — forward: existing booking needs its duration + gap cleared
+    const bGap = (b.servicio||'').toLowerCase().includes('full detail') ? 3 : 2;
     const start = Math.max(0, bIdx - gapNum + 1);
     const end = Math.min(times.length - 1, bIdx + bGap - 1);
     for (let i = start; i <= end; i++) blocked.add(i);
