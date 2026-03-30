@@ -1614,6 +1614,27 @@ footer {
 // ── CONSTANTS ──
 const WA = '526144697984';
 const ADMIN_PWD = 'lux2025';
+const SUPA_URL = 'https://nabvewmtshlpxumgnjbe.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hYnZld210c2hscHh1bWduamJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4Mjg3NzMsImV4cCI6MjA5MDQwNDc3M30.CH5JhgIs-SZzi0wMuRvB3BM2HIepwUGzpFVTdKPt-wc';
+function supaInsert(table, row) {
+  return fetch(`${SUPA_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}`, 'Prefer': 'return=minimal' },
+    body: JSON.stringify(row),
+  });
+}
+function supaSelect(table, order) {
+  return fetch(`${SUPA_URL}/rest/v1/${table}?select=*&order=${order || 'created_at.desc'}`, {
+    headers: { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}` },
+  }).then(r => r.json());
+}
+function supaUpdate(table, id, data) {
+  return fetch(`${SUPA_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}` },
+    body: JSON.stringify(data),
+  });
+}
 const MAX_PER_DAY = 3;
 const TIMES_WEEKDAY = ['15:00','16:00','17:00','18:00','19:00'];
 const TIMES_WEEKEND = ['8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00'];
@@ -2231,28 +2252,24 @@ function submitBooking(withAnticipo = false) {
   bookings.push(booking);
   saveBookings(bookings);
 
-  // Send to Netlify Forms
+  // Save to Supabase
   const addons = Object.values(booking.addons || {}).map(a => a.name).join(', ') || '—';
-  fetch('/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      'form-name': 'reservaciones',
-      folio: (booking.id || '').toUpperCase(),
-      nombre: booking.name || '',
-      telefono: booking.phone || '',
-      direccion: booking.address || '',
-      vehiculo: booking.vehName || '',
-      servicio: `${booking.category || ''} · ${booking.variant || ''}`,
-      extras: addons,
-      fecha: booking.date || '',
-      hora: booking.time || '',
-      total: `$${booking.total || 0} MXN`,
-      pago: booking.paymentMethod || 'efectivo',
-      anticipo: booking.anticipoPaid ? 'Sí' : 'No',
-      notas: booking.notes || '',
-    }).toString(),
-  }).catch(err => console.error('netlify-form:', err));
+  supaInsert('reservaciones', {
+    id: booking.id,
+    nombre: booking.name || '',
+    telefono: booking.phone || '',
+    direccion: booking.address || '',
+    vehiculo: booking.vehName || '',
+    servicio: `${booking.category || ''} · ${booking.variant || ''}`,
+    extras: addons,
+    fecha_cita: booking.date || '',
+    hora: booking.time || '',
+    total: booking.total || 0,
+    pago: booking.paymentMethod || 'efectivo',
+    anticipo: booking.anticipoPaid,
+    notas: booking.notes || '',
+    estado: 'Por confirmar',
+  }).catch(err => console.error('supabase:', err));
 
   // Store message and show success screen
   lastWAMessage = msg;
@@ -2341,12 +2358,29 @@ function checkAdminPwd() {
 }
 
 function renderAdminContent() {
-  const bookings = getBookings();
-  const awaiting  = bookings.filter(b=>b.status==='awaiting_payment');
-  const pending   = bookings.filter(b=>b.status==='pending');
-  const confirmed = bookings.filter(b=>b.status==='confirmed');
-  const completed = bookings.filter(b=>b.status==='completed');
-  const totalRev  = completed.reduce((s,b)=>s+b.total,0);
+  const content = document.getElementById('adminContent');
+  content.innerHTML = '<p style="color:var(--text-dim);text-align:center;padding:20px">Cargando reservaciones...</p>';
+  supaSelect('reservaciones').then(bookings => {
+    if (!Array.isArray(bookings)) bookings = [];
+    // Map Supabase fields to internal format
+    bookings = bookings.map(b => ({
+      ...b,
+      name: b.nombre, phone: b.telefono, address: b.direccion,
+      vehName: b.vehiculo, date: b.fecha_cita, status: b.estado,
+      paymentMethod: b.pago, anticipoPaid: b.anticipo,
+      addons: {}, notes: b.notas, total: b.total,
+    }));
+    _renderAdminBookings(bookings);
+  }).catch(() => {
+    content.innerHTML = '<p style="color:red;text-align:center;padding:20px">Error al cargar reservaciones.</p>';
+  });
+}
+
+function _renderAdminBookings(bookings) {
+  const awaiting  = bookings.filter(b=>b.estado==='Por confirmar'||b.estado==='awaiting_payment');
+  const confirmed = bookings.filter(b=>b.estado==='Confirmada'||b.estado==='confirmed');
+  const completed = bookings.filter(b=>b.estado==='Completada'||b.estado==='completed');
+  const totalRev  = completed.reduce((s,b)=>s+(b.total||0),0);
   const content   = document.getElementById('adminContent');
 
   const statusLabel = {
@@ -2428,21 +2462,14 @@ function renderAdminContent() {
 }
 
 function markPaidAndConfirm(id) {
-  const bookings = getBookings();
-  const b = bookings.find(x=>x.id===id);
-  if(b) {
-    b.status = 'confirmed';
-    b.anticipoPaid = true;
-    b.paidAt = new Date().toISOString();
-    saveBookings(bookings);
-    renderAdminContent();
-  }
+  supaUpdate('reservaciones', id, { estado: 'Confirmada', anticipo: true })
+    .then(() => renderAdminContent());
 }
 
 function updateBookingStatus(id, status) {
-  const bookings = getBookings();
-  const b = bookings.find(x=>x.id===id);
-  if(b) { b.status=status; saveBookings(bookings); renderAdminContent(); }
+  const estadoMap = { confirmed:'Confirmada', completed:'Completada', cancelled:'Cancelada', pending:'Por confirmar' };
+  supaUpdate('reservaciones', id, { estado: estadoMap[status] || status })
+    .then(() => renderAdminContent());
 }
 
 function notifyClient(id) {
