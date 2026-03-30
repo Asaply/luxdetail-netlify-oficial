@@ -2378,8 +2378,10 @@ function renderAdminContent() {
 
 function _renderAdminBookings(bookings) {
   const awaiting  = bookings.filter(b=>b.estado==='Por confirmar'||b.estado==='awaiting_payment');
+  const pending   = [];
   const confirmed = bookings.filter(b=>b.estado==='Confirmada'||b.estado==='confirmed');
   const completed = bookings.filter(b=>b.estado==='Completada'||b.estado==='completed');
+  const cancelled = bookings.filter(b=>b.estado==='Cancelada'||b.estado==='cancelled');
   const totalRev  = completed.reduce((s,b)=>s+(b.total||0),0);
   const content   = document.getElementById('adminContent');
 
@@ -2405,7 +2407,7 @@ function _renderAdminBookings(bookings) {
     ['🔔 Pendientes de confirmar', pending],
     ['✅ Confirmadas', confirmed],
     ['★ Completadas', completed.slice(-5).reverse()],
-    ['✕ Canceladas', bookings.filter(b=>b.status==="cancelled").slice(-3).reverse()],
+    ['✕ Canceladas', cancelled.slice(-3).reverse()],
   ];
 
   sections.forEach(([title, list]) => {
