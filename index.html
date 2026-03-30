@@ -2131,6 +2131,11 @@ function showDisclaimer() {
   if(!name) { alert('Por favor ingresa tu nombre.'); return; }
   const address = document.getElementById('clientAddress').value.trim();
   if(!address) { alert('Por favor ingresa la dirección del servicio.'); return; }
+  // Tarjeta: no requiere anticipo, confirma directo
+  if(state.paymentMethod === 'tarjeta') {
+    submitBooking(false);
+    return;
+  }
   document.getElementById('disclaimerOverlay').classList.add('open');
 }
 
