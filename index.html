@@ -1830,7 +1830,9 @@ function goStep(n) {
   }
   if(n===5) renderConfirm();
   updateSidebar();
-  // no scroll
+  if (window.innerWidth <= 768) {
+    setTimeout(() => document.getElementById('cotizador').scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  }
 }
 
 // ── STEP 1: VEHICLES ──
