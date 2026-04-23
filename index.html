@@ -1818,6 +1818,7 @@ function goStep(n) {
     s.classList.toggle('done', sn<n);
   });
   state.currentStep = n;
+  if(n===2) { if(!state.svcCategory) state.svcCategory='lavado'; renderServiceTabs(); renderServiceOpts(); }
   if(n===3) renderAddons();
   if(n===4) {
     const grid = document.getElementById('dateGrid');
