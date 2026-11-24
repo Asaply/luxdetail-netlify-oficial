@@ -714,14 +714,14 @@ footer {
 
 /* ── ADMIN PANEL ── */
 #adminBtn {
-  position:fixed; bottom:28px; left:28px; z-index:200;
-  width:44px; height:44px; background:rgba(32,32,32,.9);
+  position:fixed; bottom:12px; left:12px; z-index:200;
+  width:36px; height:36px; background:rgba(32,32,32,.9);
   border:1px solid var(--border); border-radius:50%;
   display:flex; align-items:center; justify-content:center;
-  font-size:18px; cursor:pointer; transition:border-color .2s;
-  backdrop-filter:blur(8px);
+  font-size:14px; cursor:pointer; transition:border-color .2s, opacity .2s;
+  backdrop-filter:blur(8px); opacity:0.4;
 }
-#adminBtn:hover { border-color:var(--accent); }
+#adminBtn:hover { border-color:var(--accent); opacity:1; }
 #adminOverlay {
   position:fixed; inset:0; z-index:300;
   background:rgba(0,0,0,.8); backdrop-filter:blur(6px);
@@ -863,6 +863,20 @@ footer {
   .time-grid { grid-template-columns:repeat(3,1fr); }
   .veh-grid { grid-template-columns:1fr; }
   .admin-stats { grid-template-columns:repeat(2,1fr); }
+  .hamburger { display:flex; }
+  .nav-links.open {
+    display:flex; flex-direction:column; position:fixed;
+    top:0; left:0; right:0; bottom:0;
+    background:rgba(17,17,17,0.97); backdrop-filter:blur(20px);
+    align-items:center; justify-content:center;
+    gap:28px; z-index:100;
+  }
+  .nav-links.open a { font-size:16px; letter-spacing:.2em; color:var(--text); }
+  .cot-progress { overflow-x:auto; justify-content:flex-start; padding:0 4px; -webkit-overflow-scrolling:touch; }
+  .cot-step { padding:0 10px; flex-shrink:0; }
+  .cot-step-label { font-size:9px; display:none; }
+  .cot-step.active .cot-step-label { display:block; }
+  .cot-step-sep { width:16px; }
 }
 
 /* ── DISCLAIMER MODAL ── */
@@ -1060,6 +1074,42 @@ footer {
 
 /* Update button labels */
 .disc-btn-pay { gap:12px; }
+
+/* ── HAMBURGER MENU ── */
+.hamburger {
+  display:none; background:none; border:none; cursor:pointer;
+  flex-direction:column; gap:5px; padding:8px; z-index:101;
+}
+.hamburger span {
+  display:block; width:22px; height:1.5px; background:var(--text);
+  transition: transform .3s, opacity .3s;
+}
+.hamburger.active span:nth-child(1) { transform:rotate(45deg) translate(5px,5px); }
+.hamburger.active span:nth-child(2) { opacity:0; }
+.hamburger.active span:nth-child(3) { transform:rotate(-45deg) translate(5px,-5px); }
+
+/* ── WHATSAPP FLOAT ── */
+.wa-float {
+  position:fixed; bottom:28px; right:28px; z-index:200;
+  width:56px; height:56px; background:#25D366; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:28px; cursor:pointer; text-decoration:none;
+  box-shadow:0 4px 16px rgba(37,211,102,.35);
+  transition:transform .2s, box-shadow .2s;
+}
+.wa-float:hover { transform:scale(1.08); box-shadow:0 6px 24px rgba(37,211,102,.45); }
+
+/* ── MOBILE TOTAL BAR ── */
+.mobile-total-bar {
+  display:none; position:fixed; bottom:0; left:0; right:0; z-index:150;
+  background:rgba(24,24,24,0.95); backdrop-filter:blur(12px);
+  border-top:1px solid var(--border);
+  padding:12px 24px;
+  justify-content:space-between; align-items:center;
+}
+@media(max-width:768px) {
+  .mobile-total-bar.visible { display:flex; }
+}
 </style>
 </head>
 <body>
@@ -1075,6 +1125,9 @@ footer {
     <li><a href="#cotizador">Cotizar</a></li>
   </ul>
   <a href="#cotizador" class="nav-cta">Reservar</a>
+  <button class="hamburger" id="hamburger" onclick="toggleMobileMenu()">
+    <span></span><span></span><span></span>
+  </button>
 </nav>
 
 <!-- HERO -->
@@ -1548,6 +1601,16 @@ footer {
   </div>
 </div>
 
+<div class="mobile-total-bar" id="mobileTotalBar">
+  <div>
+    <div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-dim)">Total estimado</div>
+    <div style="font-family:var(--font-display);font-size:28px;font-weight:300"><span style="font-size:14px;color:var(--text-muted)">$</span><span id="mobileTotal">0</span></div>
+  </div>
+  <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)" id="mobileStepLabel">Paso 1 de 5</div>
+</div>
+
+<a href="https://wa.me/526144697984" target="_blank" class="wa-float" title="WhatsApp">💬</a>
+
 <!-- ADMIN BUTTON -->
 <div id="adminBtn" title="Panel Admin" onclick="openAdmin()">🗂</div>
 
@@ -1822,6 +1885,10 @@ function goStep(n) {
   }
   if(n===5) renderConfirm();
   updateSidebar();
+  // Show/hide mobile total bar
+  if(window.innerWidth <= 768) {
+    document.getElementById('mobileTotalBar').classList.add('visible');
+  }
   if (window.innerWidth <= 768) {
     setTimeout(() => document.getElementById('cotizador').scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   }
@@ -1886,7 +1953,7 @@ function renderServiceOpts() {
   variants.forEach((v,i) => {
     const opt = document.createElement('div');
     opt.className = 'svc-opt' + (state.svcVariant===i ? ' sel' : '');
-    opt.innerHTML = `<div class="svc-opt-left"><div class="svc-opt-check">${state.svcVariant===i?'✓':''}</div><span class="svc-opt-name">${v}</span></div><span class="svc-opt-price">${prices[i].toLocaleString()}</span>`;
+    opt.innerHTML = `<div class="svc-opt-left"><div class="svc-opt-check">${state.svcVariant===i?'✓':''}</div><span class="svc-opt-name">${v}</span></div><span class="svc-opt-price">$${prices[i].toLocaleString()}</span>`;
     opt.onclick = () => {
       state.svcVariant=i; state.svcPrice=prices[i]; state.svcLabel=v;
       document.getElementById('next2').disabled=false;
@@ -2112,6 +2179,11 @@ function updateSidebar() {
   const total = calcTotal();
   totalEl.textContent = total>0 ? total.toLocaleString() : '0';
   waBtn.style.display = state.currentStep===5 ? 'block' : 'none';
+  // Mobile total bar
+  const mobileTotal = document.getElementById('mobileTotal');
+  const mobileStep = document.getElementById('mobileStepLabel');
+  if(mobileTotal) mobileTotal.textContent = total > 0 ? total.toLocaleString() : '0';
+  if(mobileStep) mobileStep.textContent = 'Paso ' + state.currentStep + ' de 5';
 }
 
 
@@ -2461,6 +2533,27 @@ function toggleFaq(btn) {
   document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
   if (!isOpen) item.classList.add('open');
 }
+
+// ── HAMBURGER MOBILE MENU ──
+function toggleMobileMenu() {
+  document.getElementById('hamburger').classList.toggle('active');
+  document.querySelector('.nav-links').classList.toggle('open');
+}
+document.querySelectorAll('.nav-links a').forEach(a => {
+  a.addEventListener('click', () => {
+    document.getElementById('hamburger').classList.remove('active');
+    document.querySelector('.nav-links').classList.remove('open');
+  });
+});
+
+// Show mobile total bar only when in cotizador
+const cotEl = document.getElementById('cotizador');
+const cotObs = new IntersectionObserver(([e]) => {
+  if(window.innerWidth <= 768) {
+    document.getElementById('mobileTotalBar').classList.toggle('visible', e.isIntersecting);
+  }
+}, { threshold: 0.05 });
+if(cotEl) cotObs.observe(cotEl);
 </script>
 </body>
 </html>
