@@ -44,7 +44,6 @@
   "image": "https://luxdetailcuu.com/images/mercedes.jpg",
   "telephone": "+526144697984",
   "priceRange": "$$",
-  "servesCuisine": null,
   "address": {
     "@type": "PostalAddress",
     "addressLocality": "Chihuahua",
@@ -844,7 +843,7 @@ footer {
   .stat-item:nth-child(2) { border-right:none; }
   .stat-item { padding:24px 0; border-bottom:1px solid var(--border); }
   .stat-item:nth-child(3),.stat-item:nth-child(4) { border-bottom:none; }
-  #servicios,.#galeria,#contacto,#cotizador { padding:80px 24px; }
+  #servicios,#galeria,#contacto,#cotizador { padding:80px 24px; }
   #servicios { padding:80px 24px; }
   #galeria { padding:80px 24px; }
   #contacto { padding:80px 24px; }
@@ -1486,7 +1485,7 @@ footer {
 <!-- FOOTER -->
 <footer>
   <div class="footer-logo">LUX<span>.</span>DETAIL</div>
-  <div class="footer-copy">© 2025 Lux Detail · Chihuahua, México</div>
+  <div class="footer-copy">© 2026 Lux Detail · Chihuahua, México</div>
   <div class="footer-social">
     <a href="https://instagram.com/luxdetail.cuu" target="_blank">Instagram</a>
     <a href="https://wa.me/526144697984" target="_blank">WhatsApp</a>
@@ -1532,13 +1531,6 @@ footer {
 
 
 <!-- BOOKING SUCCESS SCREEN -->
-<!-- Netlify Forms -->
-<form name="reservaciones" data-netlify="true" hidden>
-  <input name="folio" /><input name="nombre" /><input name="telefono" />
-  <input name="direccion" /><input name="vehiculo" /><input name="servicio" />
-  <input name="extras" /><input name="fecha" /><input name="hora" />
-  <input name="total" /><input name="pago" /><input name="anticipo" /><input name="notas" />
-</form>
 
 <div id="bookingSuccess">
   <div class="success-icon" id="successIcon">📋</div>
@@ -1934,8 +1926,8 @@ function renderAddons() {
   
   const filtered = EXTRAS.filter(ex => {
     if(addonCat === 'detBasico') return ALLOWED_BASICO.includes(ex.id);
-    if(addonCat === 'detFull')   return !BLOCKED_FULL.includes(ex.id);
-    return true;
+    if(addonCat === 'detFull')   return !BLOCKED_FULL.includes(ex.id) && ex.cats.includes('detFull');
+    return ex.cats.includes(addonCat);
   });
 
   if(filtered.length === 0) {
@@ -2068,7 +2060,7 @@ function renderTimes() {
 function renderConfirm() {
   const box = document.getElementById('confirmBox');
   const veh = VEHICLE_TYPES.find(v=>v.id===state.vehId);
-  const catNames = {lavado:'Lavado',ceramic:'Ceramic Coating',ceramicRines:'Cerámico Rines',pulido:'Pulido'};
+  const catNames = {lavado:'Lavado',encerado:'Encerado',ceramic:'Ceramic Coating',ceramicRines:'Cerámico Rines',pulido:'Pulido'};
   const addonsText = Object.values(state.addons).map(a=>a.name).join(', ') || '—';
   const d = state.date ? new Date(state.date+'T12:00:00') : null;
   const dateStr = d ? d.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'}) : '—';
@@ -2080,7 +2072,6 @@ function renderConfirm() {
     <div class="confirm-row"><span class="confirm-lbl">Hora</span><span class="confirm-val">${state.time||'—'}</span></div>
     <div class="confirm-row"><span class="confirm-lbl">Total estimado</span><span class="confirm-val" style="color:var(--accent);font-size:16px">${calcTotal().toLocaleString()} MXN</span></div>
   `;
-  document.getElementById('clientName').addEventListener('input', checkConfirmReady);
 }
 
 function checkConfirmReady() {
@@ -2106,7 +2097,7 @@ function updateSidebar() {
     html += `<div class="sidebar-line"><span class="sidebar-line-name">${veh.name}</span><span class="sidebar-line-price"></span></div>`;
   }
   if(state.svcLabel && state.svcPrice) {
-    const catNames={lavado:'Lavado',ceramic:'Cerámico',ceramicRines:'Cerámico Rines',pulido:'Pulido'};
+    const catNames={lavado:'Lavado',encerado:'Encerado',ceramic:'Cerámico',ceramicRines:'Cerámico Rines',pulido:'Pulido'};
     html += `<div class="sidebar-line"><span class="sidebar-line-name">${catNames[state.svcCategory]} · ${state.svcLabel}</span><span class="sidebar-line-price">${state.svcPrice.toLocaleString()}</span></div>`;
   }
   Object.values(state.addons).forEach(a => {
@@ -2207,7 +2198,7 @@ function submitBooking(withAnticipo = false, intentoPago = false) {
   const phone = document.getElementById('clientPhone').value.trim();
   const notes = document.getElementById('clientNotes').value.trim();
   const veh = VEHICLE_TYPES.find(v=>v.id===state.vehId);
-  const catNames={lavado:'Lavado',ceramic:'Ceramic Coating',ceramicRines:'Cerámico en Rines',pulido:'Pulido'};
+  const catNames={lavado:'Lavado',encerado:'Encerado',ceramic:'Ceramic Coating',ceramicRines:'Cerámico en Rines',pulido:'Pulido'};
   const addonsText = Object.values(state.addons).map(a=>`• ${a.name}: $${a.price.toLocaleString()}`).join('\n');
   const d = new Date(state.date+'T12:00:00');
   const dateStr = d.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
@@ -2270,7 +2261,7 @@ function submitBooking(withAnticipo = false, intentoPago = false) {
 
 function showSuccess(booking, intentoPago) {
   const vehName = booking.vehName;
-  const catNames = {lavado:'Lavado',ceramic:'Ceramic Coating',ceramicRines:'Cerámico en Rines',pulido:'Pulido'};
+  const catNames = {lavado:'Lavado',encerado:'Encerado',ceramic:'Ceramic Coating',ceramicRines:'Cerámico en Rines',pulido:'Pulido'};
   const payLabels = {efectivo:'💵 Efectivo', tarjeta:'💳 Tarjeta', stripe:'⚡ Stripe'};
   const d = new Date(booking.date + 'T12:00:00');
   const dateStr = d.toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
